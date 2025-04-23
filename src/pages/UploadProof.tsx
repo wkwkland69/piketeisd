@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSchedule } from '../contexts/ScheduleContext';
 import { format, isToday } from 'date-fns';
 import { Upload, Camera, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { supabase } from '../utils/supabaseClient';
 
 const UploadProof = () => {
   const { currentUser } = useAuth();
@@ -70,7 +71,7 @@ const UploadProof = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -92,18 +93,42 @@ const UploadProof = () => {
     
     try {
       setIsSubmitting(true);
+      let imageUrl = '';
       
-      // In a real app, we would upload the image to a server
-      // Here we'll just use the Data URL for demonstration
-      const imageUrl = imagePreview;
+      // Upload ke Supabase Storage jika ada file
+      if (isRepresentative && imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${nim}-${todaySchedule.date}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('proofs') // pastikan bucket 'proofs' sudah ada di Supabase
+          .upload(fileName, imageFile, {
+            cacheControl: '3600',
+            upsert: true,
+          });
+        if (uploadError) {
+          setError('Upload failed: ' + uploadError.message);
+          setIsSubmitting(false);
+          return;
+        }
+        // Ambil public URL
+        const { data: publicUrlData } = supabase.storage.from('proofs').getPublicUrl(fileName);
+        imageUrl = publicUrlData.publicUrl;
+      }
       
-      submitProof({
-        nim,
-        date: todaySchedule.date,
-        imageUrl: imageUrl,
-        notes: '',
-      });
-      
+      // Simpan metadata ke tabel proofs
+      const { error: insertError } = await supabase.from('proofs').insert([
+        {
+          nim,
+          date: todaySchedule.date,
+          image_url: imageUrl,
+          notes: '',
+        }
+      ]);
+      if (insertError) {
+        setError('Failed to save proof data: ' + insertError.message);
+        setIsSubmitting(false);
+        return;
+      }
       setSuccess('Proof of inspection submitted successfully!');
       setHasSubmitted(true);
       clearImage();
@@ -114,6 +139,7 @@ const UploadProof = () => {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="space-y-8">
