@@ -97,13 +97,16 @@ const UploadProof = () => {
       
       // Upload ke Supabase Storage jika ada file
       if (isRepresentative && imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${nim}-${todaySchedule.date}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('proofs') // pastikan bucket 'proofs' sudah ada di Supabase
-          .upload(fileName, imageFile, {
-            cacheControl: '3600',
-            upsert: true,
+        // Jangan gunakan todaySchedule.date langsung jika itu string non-ISO!
+const dateObj = new Date(todaySchedule.date);
+const dateString = dateObj.toISOString().split('T')[0]; // hasil: 2025-04-24
+const fileExt = imageFile.name.split('.').pop();
+const fileName = `${nim}-${dateString}.${fileExt}`;
+    const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('proofs')
+    .upload(fileName, imageFile, {
+      cacheControl: '3600',
+      upsert: true,
           });
         if (uploadError) {
           setError('Upload failed: ' + uploadError.message);
